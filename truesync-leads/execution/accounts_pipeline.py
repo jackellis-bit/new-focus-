@@ -111,27 +111,38 @@ def load_companies_from_knowledge_base() -> list:
 
 def enrich_with_tmdb(companies: list, use_cache: bool = True) -> list:
     """
-    Enrich companies with TMDb catalog data.
+    Enrich companies with TMDb data for TOP SHOWS only.
+    
+    NOTE: TMDb tracks production companies, not platform catalogs.
+    So Netflix as a platform has 15,000+ titles, but Netflix Studios 
+    (production company) only shows ~4 titles in TMDb.
+    
+    We use TMDb for:
+    - Top shows/films (for Show Details sheet)
+    - TMDb IDs for reference
+    
+    We do NOT use TMDb for catalog sizes - that comes from Google Search.
     
     Args:
         companies: List of company dictionaries
         use_cache: Whether to use cached results
         
     Returns:
-        Companies with added TMDb data (num_titles, top_shows, tmdb_id)
+        Companies with added TMDb data (top_shows, tmdb_id) but NOT num_titles
     """
     logger = get_logger()
     cache = get_api_cache() if use_cache else None
     
     logger.info("=" * 60)
-    logger.info("🎬 STEP 2: TMDb Enrichment")
+    logger.info("🎬 STEP 2: TMDb Enrichment (Top Shows Only)")
     logger.info("=" * 60)
+    logger.info("   Note: TMDb used for top shows, not catalog sizes")
     
     tmdb = TMDbClient()
     
     if not tmdb.api_key and not tmdb.access_token:
         logger.warning("   ⚠ TMDb credentials not configured. Set TMDB_ACCESS_TOKEN or TMDB_API_KEY")
-        logger.info("   Will rely on Google Search fallback for all companies")
+        logger.info("   Top shows will not be available")
         return companies
     
     enriched_count = 0
@@ -141,51 +152,47 @@ def enrich_with_tmdb(companies: list, use_cache: bool = True) -> list:
         market = company.get('region', 'usa')
         
         # Check cache first
-        cache_key = f"tmdb_company_{name.lower().replace(' ', '_')}"
+        cache_key = f"tmdb_shows_{name.lower().replace(' ', '_')}"
         cached_data = None
         
         if cache:
             cached_data = cache.get(cache_key)
             if cached_data:
                 logger.debug(f"   📦 Cache hit: {name}")
-                company.update(cached_data)
+                company['top_shows'] = cached_data.get('top_shows', '')
+                company['tmdb_id'] = cached_data.get('tmdb_id')
+                company['popularity_score'] = cached_data.get('popularity_score', 0)
                 enriched_count += 1
                 continue
         
-        # Query TMDb
+        # Query TMDb for top shows only
         try:
             show_data = tmdb.get_top_shows_formatted(name, market)
             
-            if show_data.get('total_catalog', 0) > 0:
-                company['num_titles'] = show_data.get('total_catalog', 0)
+            if show_data.get('top_shows'):
                 company['top_shows'] = show_data.get('top_shows', '')
                 company['popularity_score'] = max(
                     [s.get('popularity', 0) for s in show_data.get('show_details', [])] or [0]
                 )
                 company['tmdb_id'] = tmdb.search_company(name)
-                company['data_source'] = 'tmdb'
                 enriched_count += 1
                 
-                # Cache successful result
+                # Cache successful result (without num_titles)
                 if cache:
                     cache.set(cache_key, {
-                        'num_titles': company['num_titles'],
                         'top_shows': company['top_shows'],
                         'popularity_score': company['popularity_score'],
                         'tmdb_id': company['tmdb_id'],
-                        'data_source': 'tmdb'
                     })
                 
-                logger.info(f"   ✓ {name}: {company['num_titles']} titles")
+                logger.info(f"   ✓ {name}: Found top shows")
             else:
-                logger.info(f"   ○ {name}: No TMDb data (will try Google Search)")
-                company['data_source'] = 'pending_google'
+                logger.info(f"   ○ {name}: No top shows in TMDb")
                 
         except Exception as e:
             logger.warning(f"   ⚠ {name}: TMDb error - {str(e)[:50]}")
-            company['data_source'] = 'pending_google'
     
-    logger.info(f"   ✅ TMDb enriched: {enriched_count}/{len(companies)} companies")
+    logger.info(f"   ✅ TMDb top shows found for: {enriched_count}/{len(companies)} companies")
     
     return companies
 
@@ -212,43 +219,31 @@ def _run_google_search(client, query: str) -> list:
 
 def enrich_with_google_search(companies: list, use_cache: bool = True) -> list:
     """
-    Fallback: Use Google Search to find title counts for companies
-    where TMDb data was insufficient.
+    Use Google Search to find catalog sizes for ALL companies.
+    
+    This is more reliable than TMDb for platforms and distributors because:
+    - TMDb tracks production companies (who made content)
+    - We want catalog sizes (how much content they have/distribute)
     
     Args:
         companies: List of company dictionaries
         use_cache: Whether to use cached results
         
     Returns:
-        Companies with Google Search enrichment for missing data
+        Companies with Google Search enrichment
     """
     logger = get_logger()
     cache = get_api_cache() if use_cache else None
     
-    # Find companies needing Google Search fallback
-    needs_search = [c for c in companies if c.get('data_source') == 'pending_google']
-    
-    if not needs_search:
-        logger.info("   ✅ All companies have TMDb data, skipping Google Search")
-        return companies
-    
     logger.info("=" * 60)
-    logger.info("🔍 STEP 3: Google Search Fallback")
+    logger.info("🔍 STEP 3: Google Search Catalog Enrichment")
     logger.info("=" * 60)
-    logger.info(f"   Companies needing Google Search: {len(needs_search)}")
+    logger.info(f"   Searching catalog sizes for all {len(companies)} companies")
     
     token = os.getenv('APIFY_TOKEN')
     if not token:
-        logger.warning("   ⚠ APIFY_TOKEN not found. Cannot run Google Search fallback.")
-        # Mark remaining as manual and use catalog_size_notes
-        for company in needs_search:
-            company['data_source'] = 'catalog_notes'
-            # Try to extract number from catalog_size_notes
-            notes = company.get('catalog_size_notes', '')
-            import re
-            numbers = re.findall(r'(\d+,?\d*)', notes.replace(',', ''))
-            if numbers:
-                company['num_titles'] = int(numbers[0].replace(',', ''))
+        logger.warning("   ⚠ APIFY_TOKEN not found. Cannot run Google Search.")
+        logger.warning("   ⚠ Catalog data will be incomplete without web search.")
         return companies
     
     from apify_client import ApifyClient
@@ -256,38 +251,76 @@ def enrich_with_google_search(companies: list, use_cache: bool = True) -> list:
     
     enriched_count = 0
     
-    for company in needs_search:
+    for company in companies:
         name = company.get('name', '')
+        company_type = company.get('type', '')
         
         # Check cache
-        cache_key = f"google_catalog_{name.lower().replace(' ', '_')}"
+        cache_key = f"google_catalog_v2_{name.lower().replace(' ', '_')}"
         if cache:
             cached = cache.get(cache_key)
-            if cached:
+            if cached and cached.get('num_titles', 0) > 0:
                 company.update(cached)
                 enriched_count += 1
                 logger.debug(f"   📦 Cache hit: {name}")
                 continue
         
-        # Search Google
-        query = f'"{name}" production company catalog titles films TV shows'
+        # Build search query based on company type and name
+        # Use multiple query strategies for better results
+        base_name = name.replace(' Studios', '').replace(' Pictures', '').replace(' Entertainment', '')
+        
+        if 'Platform' in company_type or 'AVOD' in company_type:
+            query = f'"{name}" streaming total titles catalog how many movies TV shows available'
+        elif 'Distributor' in company_type:
+            query = f'"{name}" distribution catalog total titles hours library size'
+        else:
+            # Studios/Producers - search for film library size
+            query = f'"{name}" film library catalog total movies TV shows produced titles'
+        
+        # Special handling for major studios that need different queries
+        name_lower = name.lower()
+        if 'bbc' in name_lower:
+            query = 'BBC Studios catalog library total hours content productions'
+        elif 'lionsgate' in name_lower:
+            query = 'Lionsgate film library total titles movies catalog size'
+        elif 'universal' in name_lower or 'nbcuniversal' in name_lower:
+            query = 'NBCUniversal Universal Pictures film library catalog total movies'
+        elif 'sky' in name_lower:
+            query = 'Sky Studios original productions total shows library'
+        elif 'atresmedia' in name_lower:
+            query = 'Atresmedia television productions total series programs Spain'
+        elif 'mediapro' in name_lower:
+            query = 'Mediapro productions catalog total films series Spain'
+        elif 'constantin' in name_lower:
+            query = 'Constantin Film German productions total movies catalog'
+        elif 'rtl' in name_lower:
+            query = 'RTL+ Germany streaming catalog total titles shows'
+        elif 'beta film' in name_lower:
+            query = 'Beta Film distribution catalog hours international drama'
+        elif 'sbs' in name_lower and 'korea' in company.get('region', '').lower():
+            query = 'SBS Korea drama productions total K-drama series catalog'
         
         try:
             results = _run_google_search(client, query)
             
             # Parse results for title information
             num_titles = 0
-            top_shows = []
             
             for result in results:
                 for organic in result.get('organicResults', []):
                     snippet = organic.get('description', '') + ' ' + organic.get('title', '')
                     
-                    # Look for numbers near "titles", "films", "shows", "hours"
+                    # Look for numbers near catalog-related keywords
                     import re
                     patterns = [
-                        r'(\d+,?\d*)\+?\s*(?:titles|films|movies|shows|hours|productions)',
-                        r'(?:catalog|library|archive)\s*(?:of\s*)?(\d+,?\d*)',
+                        # "50,000 titles" or "50000+ titles"
+                        r'(\d{1,3}(?:,\d{3})*|\d+)\+?\s*(?:titles|films|movies|shows|series)',
+                        # "library of 50,000" or "catalog of 50000"
+                        r'(?:library|catalog|catalogue|archive|collection)\s*(?:of\s*)?(?:over\s*)?(\d{1,3}(?:,\d{3})*|\d+)',
+                        # "over 50,000 hours"
+                        r'(?:over\s*)?(\d{1,3}(?:,\d{3})*|\d+)\+?\s*hours?\s*(?:of\s*)?(?:content|programming)',
+                        # "more than 50,000"
+                        r'(?:more than|over|approximately|about|nearly)\s*(\d{1,3}(?:,\d{3})*|\d+)\s*(?:titles|films|movies|shows)',
                     ]
                     
                     for pattern in patterns:
@@ -295,7 +328,8 @@ def enrich_with_google_search(companies: list, use_cache: bool = True) -> list:
                         if matches:
                             for match in matches:
                                 num = int(match.replace(',', ''))
-                                if num > num_titles:
+                                # Take the largest reasonable number (ignore things like years)
+                                if num > num_titles and num < 1000000:
                                     num_titles = num
             
             if num_titles > 0:
@@ -310,23 +344,22 @@ def enrich_with_google_search(companies: list, use_cache: bool = True) -> list:
                         'data_source': 'google_search'
                     })
                 
-                logger.info(f"   ✓ {name}: {num_titles} titles (Google)")
+                logger.info(f"   ✓ {name}: {num_titles:,} titles (Google)")
             else:
-                # Fall back to catalog notes
-                company['data_source'] = 'catalog_notes'
-                notes = company.get('catalog_size_notes', '')
-                numbers = re.findall(r'(\d+,?\d*)', notes.replace(',', ''))
-                if numbers:
-                    company['num_titles'] = int(numbers[0].replace(',', ''))
-                    logger.info(f"   ○ {name}: {company['num_titles']} titles (from notes)")
+                # No data found - mark as needs manual review
+                if company.get('num_titles', 0) == 0:
+                    company['data_source'] = 'not_found'
+                    logger.info(f"   ✗ {name}: No catalog data found in search results")
                 else:
-                    logger.info(f"   ○ {name}: No title count found")
+                    # Keep existing TMDb data if available
+                    logger.info(f"   ○ {name}: Keeping existing data ({company.get('num_titles', 0)} titles)")
                     
         except Exception as e:
             logger.warning(f"   ⚠ {name}: Google Search error - {str(e)[:50]}")
-            company['data_source'] = 'error'
+            if company.get('num_titles', 0) == 0:
+                company['data_source'] = 'error'
     
-    logger.info(f"   ✅ Google Search enriched: {enriched_count}/{len(needs_search)} companies")
+    logger.info(f"   ✅ Google Search enriched: {enriched_count}/{len(companies)} companies")
     
     return companies
 

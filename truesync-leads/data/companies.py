@@ -4,15 +4,16 @@ Target Companies
 
 Priority companies across Tier 1 (UK, USA, Spain) and Tier 2 (Germany, France, Korea) markets.
 
-Updated strategy: 2 Producers + 1 Distributor + Platforms per market.
+Updated strategy: 2 Studios + 1 Distributor + Platforms per market.
 This reflects feedback that distributors are often regional sales agents rather than 
 having actual ability to distribute themselves.
 
 Company Types:
-- Producer: Creates content (greenlight power, catalog owners)
-- Distributor: Sells/licenses content internationally  
-- Platform: Streaming/broadcast platforms (buyers with commissioning power)
-- AVOD Platform: Ad-supported streaming (minutes watched = revenue)
+- Studio: Creates content (greenlight power, catalog owners) - e.g. BBC Studios, Lionsgate
+- Distributor: Sells/licenses content internationally - e.g. All3Media, Beta Film
+- Broadcaster: Traditional TV channels with commissioning power - e.g. Channel 4, Sky
+- Streaming Platform: Digital streaming services - e.g. Netflix, Canal+
+- AVOD Platform: Ad-supported free streaming (minutes watched = revenue) - e.g. Tubi, Pluto TV
 """
 
 COMPANIES = [
@@ -23,10 +24,10 @@ COMPANIES = [
     # ==================
     # UK (Gateway to US buyers)
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'BBC Studios',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'uk',
         'linkedin_url': 'https://www.linkedin.com/company/bbc-studios/',
         'catalog_size': '2500+ hours annually, 40,000+ hours archive',
@@ -34,7 +35,7 @@ COMPANIES = [
     },
     {
         'name': 'ITV Studios',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'uk',
         'linkedin_url': 'https://www.linkedin.com/company/itv-studios/',
         'catalog_size': '8,000+ hours production annually',
@@ -52,7 +53,7 @@ COMPANIES = [
     # Platforms
     {
         'name': 'Sky Studios',
-        'type': 'Platform',
+        'type': 'Broadcaster',
         'market': 'uk',
         'linkedin_url': 'https://www.linkedin.com/company/sky/',
         'catalog_size': '100+ Sky Originals',
@@ -60,7 +61,7 @@ COMPANIES = [
     },
     {
         'name': 'Channel 4',
-        'type': 'Platform',
+        'type': 'Broadcaster',
         'market': 'uk',
         'linkedin_url': 'https://www.linkedin.com/company/channel-4/',
         'catalog_size': '1,000+ hours originals',
@@ -70,10 +71,10 @@ COMPANIES = [
     # ==================
     # USA (Greenlight Power)
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'Universal Pictures Content Group',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'usa',
         'linkedin_url': 'https://www.linkedin.com/company/nbcuniversal/',
         'catalog_size': '5000+ films, major franchises',
@@ -81,7 +82,7 @@ COMPANIES = [
     },
     {
         'name': 'Lionsgate',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'usa',
         'linkedin_url': 'https://www.linkedin.com/company/lionsgate/',
         'catalog_size': '20,000+ film & TV titles',
@@ -89,7 +90,7 @@ COMPANIES = [
     },
     {
         'name': 'Sony Pictures Entertainment',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'usa',
         'linkedin_url': 'https://www.linkedin.com/company/sony-pictures-entertainment/',
         'catalog_size': '3,500+ films, 150,000+ TV episodes',
@@ -107,7 +108,7 @@ COMPANIES = [
     # Platform
     {
         'name': 'Netflix US',
-        'type': 'Platform',
+        'type': 'Streaming Platform',
         'market': 'usa',
         'linkedin_url': 'https://www.linkedin.com/company/netflix/',
         'catalog_size': '15,000+ titles globally',
@@ -117,10 +118,10 @@ COMPANIES = [
     # ==================
     # SPAIN (Highest ROI for Dubbing)
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'Atresmedia Studios',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'spain',
         'linkedin_url': 'https://www.linkedin.com/company/atresmedia/',
         'catalog_size': '500+ hours of premium Spanish content',
@@ -128,7 +129,7 @@ COMPANIES = [
     },
     {
         'name': 'Mediapro',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'spain',
         'linkedin_url': 'https://www.linkedin.com/company/mediapro/',
         'catalog_size': '1000+ hours across film and TV',
@@ -146,7 +147,7 @@ COMPANIES = [
     # Platform
     {
         'name': 'Netflix Spain',
-        'type': 'Platform',
+        'type': 'Streaming Platform',
         'market': 'spain',
         'linkedin_url': 'https://www.linkedin.com/company/netflix/',
         'catalog_size': '100+ Spanish originals',
@@ -160,10 +161,10 @@ COMPANIES = [
     # ==================
     # GERMANY
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'UFA',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'germany',
         'linkedin_url': 'https://www.linkedin.com/company/ufa-gmbh/',
         'catalog_size': '1000+ hours annually',
@@ -171,7 +172,7 @@ COMPANIES = [
     },
     {
         'name': 'Constantin Film',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'germany',
         'linkedin_url': 'https://www.linkedin.com/company/constantin-film/',
         'catalog_size': '300+ films',
@@ -189,7 +190,7 @@ COMPANIES = [
     # Platform
     {
         'name': 'RTL+ Germany',
-        'type': 'Platform',
+        'type': 'Streaming Platform',
         'market': 'germany',
         'linkedin_url': 'https://www.linkedin.com/company/rtl-deutschland/',
         'catalog_size': '500+ originals and exclusives',
@@ -199,10 +200,10 @@ COMPANIES = [
     # ==================
     # FRANCE
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'Gaumont',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'france',
         'linkedin_url': 'https://www.linkedin.com/company/gaumont/',
         'catalog_size': '1500+ films, 100+ TV series',
@@ -210,7 +211,7 @@ COMPANIES = [
     },
     {
         'name': 'StudioCanal',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'france',
         'linkedin_url': 'https://www.linkedin.com/company/studiocanal/',
         'catalog_size': '7000+ films',
@@ -228,7 +229,7 @@ COMPANIES = [
     # Platform
     {
         'name': 'Canal+',
-        'type': 'Platform',
+        'type': 'Streaming Platform',
         'market': 'france',
         'linkedin_url': 'https://www.linkedin.com/company/canal-plus/',
         'catalog_size': '200+ original productions',
@@ -238,10 +239,10 @@ COMPANIES = [
     # ==================
     # SOUTH KOREA
     # ==================
-    # 2 Producers
+    # 2 Studios
     {
         'name': 'Studio Dragon',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'korea',
         'linkedin_url': 'https://www.linkedin.com/company/studiodragon/',
         'catalog_size': '100+ premium K-drama series',
@@ -249,7 +250,7 @@ COMPANIES = [
     },
     {
         'name': 'CJ ENM',
-        'type': 'Producer',
+        'type': 'Studio',
         'market': 'korea',
         'linkedin_url': 'https://www.linkedin.com/company/cj-enm/',
         'catalog_size': '500+ hours film and TV',
@@ -267,7 +268,7 @@ COMPANIES = [
     # Platform
     {
         'name': 'Netflix Korea',
-        'type': 'Platform',
+        'type': 'Streaming Platform',
         'market': 'korea',
         'linkedin_url': 'https://www.linkedin.com/company/netflix/',
         'catalog_size': '50+ Korean originals',

@@ -10,28 +10,39 @@ Enrich all target companies from `data/companies.py` with catalog data (title co
 |--------|-------------|--------|
 | Accounts | Company name | data/companies.py |
 | Region | Market (UK, USA, Spain, etc.) | data/companies.py |
-| No. of titles | Catalog size | TMDb or Google Search |
-| Type of company | Producer/Distributor/Platform | data/companies.py |
+| No. of titles | Catalog size | Google Search (primary) |
+| Type of company | Studio/Broadcaster/Streaming Platform/Distributor/AVOD Platform | data/companies.py |
 | No. of contacts | Count of leads at company | Leads database |
+
+## Company Types
+
+| Type | Description | Examples |
+|------|-------------|----------|
+| Studio | Creates content (greenlight power, catalog owners) | BBC Studios, Lionsgate, Sony |
+| Broadcaster | Traditional TV channels with commissioning power | Channel 4, Sky Studios |
+| Streaming Platform | Digital streaming services | Netflix, Canal+, RTL+ |
+| Distributor | Sells/licenses content internationally | All3Media, Beta Film, Warner Bros. Discovery |
+| AVOD Platform | Ad-supported free streaming | Tubi, Pluto TV, Roku |
 
 ## Data Sources (Priority Order)
 
-1. **TMDb API** (primary) - Title counts, top shows, popularity scores
-2. **Google Search Apify** (fallback) - If TMDb returns insufficient data
-3. **Catalog Notes** (fallback) - Extract numbers from catalog_size field in companies.py
-4. **Leads Database** - Contact counts per company
+1. **Google Search Apify** (primary) - Actual catalog sizes from web search
+2. **TMDb API** (for top shows only) - Recent top titles from last 5 years
+3. **Leads Database** - Contact counts per company
+
+**Note:** TMDb tracks production companies, not platform catalogs. A platform like Netflix has 15,000+ titles, but Netflix Studios (production company) only shows ~4 in TMDb. That's why we use Google Search for catalog sizes.
 
 ## Process
 
 ### 1. Load Companies
 
 Load all target companies from `data/companies.py`:
-- ~30 companies across 6 markets (UK, USA, Spain, Germany, France, Korea)
+- 30 companies across 6 markets (UK, USA, Spain, Germany, France, Korea)
 - Includes company type, LinkedIn URL, catalog notes
 
-### 2. TMDb Enrichment
+### 2. TMDb Enrichment (Top Shows Only)
 
-For each company, query TMDb API:
+For each company, query TMDb API for **recent top shows** (last 5 years):
 ```python
 from scrapers.catalog import TMDbClient
 tmdb = TMDbClient()
@@ -39,19 +50,23 @@ show_data = tmdb.get_top_shows_formatted(company_name, market)
 ```
 
 Returns:
-- `total_catalog`: Number of titles
-- `top_shows`: Comma-separated list of notable shows
+- `top_shows`: Comma-separated list of recent notable shows (2021-2026)
 - `show_details`: List with popularity scores
 
-### 3. Google Search Fallback
+**Note:** TMDb is NOT used for catalog sizes - only for top shows.
 
-If TMDb returns no data, use Google Search:
+### 3. Google Search Catalog Enrichment
+
+For ALL companies, search Google for actual catalog sizes:
 ```
-Query: "{company name}" production company catalog titles films TV shows
+Query varies by company type:
+- Studios: "{name}" film library catalog total movies TV shows
+- Platforms: "{name}" streaming total titles catalog
+- Distributors: "{name}" distribution catalog total titles hours
 ```
 
 Parse results for:
-- Numbers near "titles", "films", "shows", "hours"
+- Numbers near "titles", "films", "shows", "hours", "library"
 - Catalog/library size mentions
 
 ### 4. Count Contacts
@@ -114,16 +129,18 @@ python execution/accounts_pipeline.py --export-from-db --export-leads
 
 | Accounts | Region | No. of titles | Type of company | No. of contacts |
 |----------|--------|---------------|-----------------|-----------------|
-| BBC Studios | UK | 2,500 | Producer | 12 |
-| Netflix US | USA | 15,000 | Platform | 24 |
-| Gaumont | France | 1,600 | Producer | 8 |
+| BBC Studios | UK | 130,000 | Studio | 17 |
+| Netflix US | USA | 7,800 | Streaming Platform | 20 |
+| Channel 4 | UK | 2,219 | Broadcaster | 8 |
+| Tubi | USA | 300,000 | AVOD Platform | 0 |
 
-### Sheet 2: "Show Details"
+### Sheet 2: "Show Details" (Recent Titles from Last 5 Years)
 
 | Account | Top Shows | Popularity Score | Data Source |
 |---------|-----------|------------------|-------------|
-| BBC Studios | Doctor Who (2005, EN), Top Gear... | 85 | tmdb |
-| Gaumont | Lupin (2021, FR), Narcos... | 72 | tmdb |
+| BBC Studios | Great Expectations (2023, EN), King & Conqueror (2025, EN) | 16.4 | google_search |
+| Lionsgate | The Housemaid (2025, EN), Ballerina (2025, EN) | 191.8 | google_search |
+| Gaumont | Lupin (2021, FR), The Residence (2025, FR) | 12.9 | google_search |
 
 ## Database Schema
 

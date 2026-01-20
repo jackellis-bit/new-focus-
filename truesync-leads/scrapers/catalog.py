@@ -147,7 +147,8 @@ class TMDbClient:
         self,
         company_id: int,
         language: str = None,
-        max_results: int = 20
+        max_results: int = 20,
+        recent_only: bool = False
     ) -> Dict:
         """
         Get movies produced by a company.
@@ -156,6 +157,7 @@ class TMDbClient:
             company_id: TMDb company ID
             language: Filter by original language (e.g., 'es', 'ko', 'fr')
             max_results: Maximum number of results to return (for display)
+            recent_only: If True, only return movies from last 5 years
             
         Returns:
             Dictionary with 'items' (list of movies) and 'total_count' (actual catalog size)
@@ -166,6 +168,12 @@ class TMDbClient:
         }
         if language:
             params['with_original_language'] = language
+        
+        # Filter to last 5 years for recent titles
+        if recent_only:
+            from datetime import datetime
+            five_years_ago = datetime.now().year - 5
+            params['primary_release_date.gte'] = f'{five_years_ago}-01-01'
             
         data = self._make_request('discover/movie', params)
         
@@ -192,7 +200,8 @@ class TMDbClient:
         self,
         company_id: int,
         language: str = None,
-        max_results: int = 20
+        max_results: int = 20,
+        recent_only: bool = False
     ) -> Dict:
         """
         Get TV shows produced by a company.
@@ -201,6 +210,7 @@ class TMDbClient:
             company_id: TMDb company ID
             language: Filter by original language
             max_results: Maximum number of results to return (for display)
+            recent_only: If True, only return shows from last 5 years
             
         Returns:
             Dictionary with 'items' (list of shows) and 'total_count' (actual catalog size)
@@ -211,6 +221,12 @@ class TMDbClient:
         }
         if language:
             params['with_original_language'] = language
+        
+        # Filter to last 5 years for recent titles
+        if recent_only:
+            from datetime import datetime
+            five_years_ago = datetime.now().year - 5
+            params['first_air_date.gte'] = f'{five_years_ago}-01-01'
             
         data = self._make_request('discover/tv', params)
         
@@ -236,7 +252,8 @@ class TMDbClient:
     def get_catalog_for_company(
         self,
         company_name: str,
-        market: str
+        market: str,
+        recent_only: bool = True
     ) -> Dict:
         """
         Get full catalog information for a company.
@@ -244,6 +261,7 @@ class TMDbClient:
         Args:
             company_name: Name of the company
             market: Market (spain/korea/france)
+            recent_only: If True, top shows will be from last 5 years only
             
         Returns:
             Dictionary with movies, TV shows, total counts, and summary
@@ -264,14 +282,18 @@ class TMDbClient:
         
         language = self.LANGUAGE_CODES.get(market)
         
-        # Get movies and TV shows with total counts
-        movies_data = self.get_company_movies(company_id, language, max_results=10)
-        tv_data = self.get_company_tv_shows(company_id, language, max_results=10)
+        # Get RECENT movies and TV shows for top shows display (last 5 years)
+        movies_data = self.get_company_movies(company_id, language, max_results=10, recent_only=recent_only)
+        tv_data = self.get_company_tv_shows(company_id, language, max_results=10, recent_only=recent_only)
         
         movies = movies_data.get('items', [])
         tv_shows = tv_data.get('items', [])
-        total_movies = movies_data.get('total_count', 0)
-        total_tv_shows = tv_data.get('total_count', 0)
+        
+        # Get TOTAL catalog count (all time, not just recent)
+        all_movies_data = self.get_company_movies(company_id, None, max_results=1, recent_only=False)
+        all_tv_data = self.get_company_tv_shows(company_id, None, max_results=1, recent_only=False)
+        total_movies = all_movies_data.get('total_count', 0)
+        total_tv_shows = all_tv_data.get('total_count', 0)
         
         # Count non-English content (from returned samples)
         non_english_movies = [m for m in movies if m.get('original_language') != 'en']
@@ -279,7 +301,7 @@ class TMDbClient:
         
         summary = (
             f"{total_movies} films, {total_tv_shows} TV shows in TMDb. "
-            f"Top titles: {', '.join([m['title'] for m in movies[:3] if m.get('title')])}"
+            f"Recent top titles: {', '.join([m['title'] for m in movies[:3] if m.get('title')])}"
         )
         
         return {

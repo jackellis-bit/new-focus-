@@ -183,9 +183,11 @@ python execution/accounts_pipeline.py --export-from-db --export-leads
 ```
 
 **Data Sources:**
-1. TMDb API (primary) - Actual total catalog count via `total_results` from discover endpoints
-2. Google Search Apify (fallback) - If TMDb insufficient
+1. Google Search Apify (primary) - Actual catalog sizes from web search
+2. TMDb API (for top shows only) - Recent titles from last 5 years
 3. Leads database - Contact counts per company (COUNT of leads grouped by company_id)
+
+**Company Types:** Studio, Broadcaster, Streaming Platform, Distributor, AVOD Platform
 
 **TMDb API Usage:**
 TMDb provides 3 search methods (see [Finding Data](https://developer.themoviedb.org/docs/finding-data)):
