@@ -20,8 +20,7 @@ PIPELINE FLOW:
 1. Load Sales Nav leads from JSON
 2. PART 1: Find LinkedIn URLs via batched Google search
 3. PART 2: Enrich with verified emails (batched per domain group)
-4. PART 3: Discover additional leads at target companies
-5. PART 4: Export to styled Excel + push to database
+4. PART 3: Export to styled Excel + push to database
 
 PERFORMANCE:
 - 55 leads: ~3-5 minutes (vs ~20 minutes with single queries)
@@ -74,15 +73,24 @@ DISCOVERY_JOB_TITLES = [
     # Distribution
     "Head of Distribution",
     "VP Distribution",
+    "Head of Global Distribution",
+    "Head of International Sales",
+    "VP International Sales",
+    "SVP International Sales",
     # Licensing & Sales
     "Head of Licensing",
+    "VP International Licensing",
+    "SVP International Licensing",
+    "Director of Licensing",
     "Head of Content Sales",
+    "Director of Content Sales",
     "VP Content Partnerships",
     # Programming & Content
     "Head of Programming",
     "Head of Content",
     "SVP Content",
     "EVP Content",
+    "Chief Content Officer",
     # Consumer Insights / Data Science (Validation Partners)
     "Head of Consumer Insights",
     "VP Data Science",
@@ -98,12 +106,28 @@ DISCOVERY_JOB_TITLES = [
     "Head of International Originals",
     "VP Local Originals",
     "Head of Local Content",
-    # Universal-specific targets
+    # Localization
+    "Head of Localization",
+    "VP Localization",
+    "SVP Localization",
+    "Director of Localization",
+    # AI & Technology
+    "Head of AI",
+    "VP AI",
+    "SVP AI",
+    "Chief AI Officer",
+    "Head of AI Strategy",
+    "VP Artificial Intelligence",
+    # Operations & Strategy
     "CFO",
     "SVP Commercial Strategy",
+    "VP Commercial Strategy",
+    "Head of Commercial Strategy",
     "SVP Production",
     "SVP Programming",
     "SVP Operations",
+    "VP Operations",
+    "Head of Operations",
 ]
 
 
@@ -576,86 +600,7 @@ def enrich_leads_from_apify(leads: list, location: str = "", use_cache: bool = T
 
 
 # ============================================================================
-# PART 3: Discover Additional Leads
-# ============================================================================
-
-def discover_additional_leads(existing_leads: list, apify_results: list, location: str = "united kingdom") -> list:
-    """
-    Find NEW leads from Apify results that weren't in Sales Nav export.
-    Only includes leads from target companies defined in data/companies.py.
-    
-    Args:
-        existing_leads: List of existing lead dictionaries
-        apify_results: Results from Apify leads-finder
-        location: Default location for new leads
-        
-    Returns:
-        List of newly discovered leads
-    """
-    logger = get_logger()
-    
-    logger.info("=" * 60)
-    logger.info("🔍 PART 3: Extract Additional Leads from Apify Results")
-    logger.info("=" * 60)
-    
-    # Create set of existing names for deduplication
-    existing_names = {lead.get('name', '').lower().strip() for lead in existing_leads}
-    
-    new_leads = []
-    filtered_non_target = 0
-    
-    for result in apify_results:
-        name = f"{result.get('first_name', '')} {result.get('last_name', '')}".strip()
-        if not name:
-            name = result.get('full_name', result.get('name', ''))
-        
-        if not name or name.lower().strip() in existing_names:
-            continue
-        
-        # Filter to target companies only - skip leads from non-target companies
-        company_name = result.get('company_name', '')
-        if not get_domain_for_company(company_name):
-            filtered_non_target += 1
-            continue
-        
-        # Check if this is a relevant lead
-        title = result.get('job_title', result.get('title', result.get('headline', '')))
-        if not title:
-            continue
-        
-        # Detect market from location
-        result_location = result.get('country', location)
-        detected_market = detect_market(result_location)
-        
-        # Create lead
-        new_lead = {
-            'name': name,
-            'title': title,
-            'company': company_name,
-            'email': result.get('email', ''),
-            'email_verified': bool(result.get('email')),
-            'linkedin_url': result.get('linkedin') or result.get('linkedin_url', ''),
-            'location': result_location,
-            'detected_market': detected_market,
-        }
-        new_lead['score'] = score_lead(new_lead)
-        
-        # Only include if ICP score is decent
-        if new_lead['score'] >= 50:
-            new_leads.append(new_lead)
-            existing_names.add(name.lower().strip())
-    
-    logger.info(f"   ✅ Discovered {len(new_leads)} NEW leads from Apify")
-    verified = sum(1 for l in new_leads if l.get('email_verified'))
-    logger.info(f"      With verified emails: {verified}")
-    if filtered_non_target > 0:
-        logger.info(f"      Filtered out {filtered_non_target} leads from non-target companies")
-    
-    return new_leads
-
-
-# ============================================================================
-# PART 4: Export with Professional Excel Styling
+# PART 3: Export with Professional Excel Styling
 # ============================================================================
 
 def export_to_styled_excel(leads: list, market: str = "UK") -> str:
@@ -920,7 +865,6 @@ def main():
     parser.add_argument("--market", default="Global", help="Market name")
     parser.add_argument("--location", default="", help="Location filter (optional)")
     parser.add_argument("--skip-enrich", action="store_true", help="Skip enrichment")
-    parser.add_argument("--skip-discovery", action="store_true", help="Skip lead discovery")
     parser.add_argument("--skip-db", action="store_true", help="Skip database push")
     parser.add_argument("--skip-cache", action="store_true", help="Skip API result caching")
     parser.add_argument("--filter-companies", action="store_true", help="Only include target companies")
@@ -975,10 +919,9 @@ def main():
             lead['detected_market'] = detect_market(lead['location'])
     
     # PART 1 & 2: Find LinkedIn URLs and enrich emails
-    apify_results = []
     if not args.skip_enrich:
         leads = find_linkedin_urls(leads, use_cache=use_cache)
-        leads, apify_results = enrich_leads_from_apify(leads, args.location, use_cache=use_cache)
+        leads, _ = enrich_leads_from_apify(leads, args.location, use_cache=use_cache)
     else:
         logger.info("⏭ Skipping enrichment")
         # Add pattern emails for leads without email
@@ -993,22 +936,12 @@ def main():
                             lead['email'] = email
                             lead['email_verified'] = False
     
-    # PART 3: Discover additional leads from Apify results
-    new_leads = []
-    if not args.skip_discovery and apify_results:
-        new_leads = discover_additional_leads(leads, apify_results, args.location)
-        for lead in new_leads:
-            lead['market'] = args.market
-        leads.extend(new_leads)
-    elif args.skip_discovery:
-        logger.info("⏭ Skipping lead discovery")
-    
     # Sort all leads by score
     leads.sort(key=lambda x: x.get('score', 0), reverse=True)
     
-    # PART 4: Export
+    # PART 3: Export
     logger.info("=" * 60)
-    logger.info("📤 PART 4: Export & Database")
+    logger.info("📤 PART 3: Export & Database")
     logger.info("=" * 60)
     
     output_path = export_to_styled_excel(leads, args.market)
@@ -1028,8 +961,6 @@ def main():
     logger.info("=" * 70)
     logger.info(f"   📊 Lead Summary:")
     logger.info(f"      Total leads: {len(leads)}")
-    logger.info(f"      Sales Navigator leads: {len(leads) - len(new_leads)}")
-    logger.info(f"      Newly discovered leads: {len(new_leads)}")
     logger.info(f"   🔗 LinkedIn URLs: {with_linkedin}/{len(leads)}")
     logger.info(f"   📧 Email Summary:")
     logger.info(f"      Verified (Apify): {verified}")

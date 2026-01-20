@@ -84,6 +84,12 @@ python execution/accounts_pipeline.py --skip-cache
 
 # Clear cache before running
 python execution/accounts_pipeline.py --clear-cache
+
+# Export from database (sync CSVs with DB state, no enrichment)
+python execution/accounts_pipeline.py --export-from-db
+
+# Export accounts AND leads from database
+python execution/accounts_pipeline.py --export-from-db --export-leads
 ```
 
 ## Dependencies

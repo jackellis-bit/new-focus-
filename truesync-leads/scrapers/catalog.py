@@ -148,29 +148,29 @@ class TMDbClient:
         company_id: int,
         language: str = None,
         max_results: int = 20
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Get movies produced by a company.
         
         Args:
             company_id: TMDb company ID
             language: Filter by original language (e.g., 'es', 'ko', 'fr')
-            max_results: Maximum number of results
+            max_results: Maximum number of results to return (for display)
             
         Returns:
-            List of movie dictionaries
+            Dictionary with 'items' (list of movies) and 'total_count' (actual catalog size)
         """
-        data = self._make_request(
-            f'discover/movie',
-            {
-                'with_companies': company_id,
-                'sort_by': 'popularity.desc',
-                'with_original_language': language
-            }
-        )
+        params = {
+            'with_companies': company_id,
+            'sort_by': 'popularity.desc',
+        }
+        if language:
+            params['with_original_language'] = language
+            
+        data = self._make_request('discover/movie', params)
         
         if not data:
-            return []
+            return {'items': [], 'total_count': 0}
         
         movies = []
         for movie in data.get('results', [])[:max_results]:
@@ -183,36 +183,39 @@ class TMDbClient:
                 'overview': movie.get('overview', '')[:200]
             })
         
-        return movies
+        return {
+            'items': movies,
+            'total_count': data.get('total_results', len(movies))
+        }
     
     def get_company_tv_shows(
         self,
         company_id: int,
         language: str = None,
         max_results: int = 20
-    ) -> List[Dict]:
+    ) -> Dict:
         """
         Get TV shows produced by a company.
         
         Args:
             company_id: TMDb company ID
             language: Filter by original language
-            max_results: Maximum number of results
+            max_results: Maximum number of results to return (for display)
             
         Returns:
-            List of TV show dictionaries
+            Dictionary with 'items' (list of shows) and 'total_count' (actual catalog size)
         """
-        data = self._make_request(
-            f'discover/tv',
-            {
-                'with_companies': company_id,
-                'sort_by': 'popularity.desc',
-                'with_original_language': language
-            }
-        )
+        params = {
+            'with_companies': company_id,
+            'sort_by': 'popularity.desc',
+        }
+        if language:
+            params['with_original_language'] = language
+            
+        data = self._make_request('discover/tv', params)
         
         if not data:
-            return []
+            return {'items': [], 'total_count': 0}
         
         shows = []
         for show in data.get('results', [])[:max_results]:
@@ -225,7 +228,10 @@ class TMDbClient:
                 'overview': show.get('overview', '')[:200]
             })
         
-        return shows
+        return {
+            'items': shows,
+            'total_count': data.get('total_results', len(shows))
+        }
     
     def get_catalog_for_company(
         self,
@@ -240,7 +246,7 @@ class TMDbClient:
             market: Market (spain/korea/france)
             
         Returns:
-            Dictionary with movies, TV shows, and summary
+            Dictionary with movies, TV shows, total counts, and summary
         """
         company_id = self.search_company(company_name)
         
@@ -250,22 +256,30 @@ class TMDbClient:
                 'market': market,
                 'movies': [],
                 'tv_shows': [],
+                'total_movies': 0,
+                'total_tv_shows': 0,
+                'total_catalog': 0,
                 'summary': f'No TMDb data found for {company_name}'
             }
         
         language = self.LANGUAGE_CODES.get(market)
         
-        movies = self.get_company_movies(company_id, language, max_results=10)
-        tv_shows = self.get_company_tv_shows(company_id, language, max_results=10)
+        # Get movies and TV shows with total counts
+        movies_data = self.get_company_movies(company_id, language, max_results=10)
+        tv_data = self.get_company_tv_shows(company_id, language, max_results=10)
         
-        # Count non-English content
+        movies = movies_data.get('items', [])
+        tv_shows = tv_data.get('items', [])
+        total_movies = movies_data.get('total_count', 0)
+        total_tv_shows = tv_data.get('total_count', 0)
+        
+        # Count non-English content (from returned samples)
         non_english_movies = [m for m in movies if m.get('original_language') != 'en']
         non_english_shows = [s for s in tv_shows if s.get('original_language') != 'en']
         
         summary = (
-            f"{len(non_english_movies)} non-English films, "
-            f"{len(non_english_shows)} non-English TV shows. "
-            f"Top titles: {', '.join([m['title'] for m in movies[:3]])}"
+            f"{total_movies} films, {total_tv_shows} TV shows in TMDb. "
+            f"Top titles: {', '.join([m['title'] for m in movies[:3] if m.get('title')])}"
         )
         
         return {
@@ -274,6 +288,9 @@ class TMDbClient:
             'market': market,
             'movies': movies,
             'tv_shows': tv_shows,
+            'total_movies': total_movies,
+            'total_tv_shows': total_tv_shows,
+            'total_catalog': total_movies + total_tv_shows,
             'non_english_count': len(non_english_movies) + len(non_english_shows),
             'summary': summary
         }
@@ -293,21 +310,22 @@ class TMDbClient:
             market: Market (spain/korea/france)
             
         Returns:
-            String summarizing the company's non-English catalog
+            String summarizing the company's catalog
         """
         catalog = self.get_catalog_for_company(company_name, market)
         
-        if not catalog.get('movies') and not catalog.get('tv_shows'):
+        total_catalog = catalog.get('total_catalog', 0)
+        if total_catalog == 0:
             return f"{company_name}: Catalog data not available"
         
         # Get top 3 titles
         all_titles = catalog.get('movies', []) + catalog.get('tv_shows', [])
         top_titles = sorted(all_titles, key=lambda x: x.get('popularity', 0), reverse=True)[:3]
         
-        title_str = ', '.join([t['title'] for t in top_titles])
+        title_str = ', '.join([t['title'] for t in top_titles if t.get('title')])
         
         return (
-            f"{catalog.get('non_english_count', 0)} non-English titles. "
+            f"{total_catalog:,} titles in catalog. "
             f"Notable: {title_str}"
         )
     
@@ -324,17 +342,22 @@ class TMDbClient:
             Dictionary with:
             - top_shows: Comma-separated list of show names
             - show_details: List of dicts with name, rating, year, language
-            - total_catalog: Total titles found
+            - total_catalog: Actual total titles in TMDb (not capped)
+            - total_movies: Total movies in catalog
+            - total_tv_shows: Total TV shows in catalog
         """
         catalog = self.get_catalog_for_company(company_name, market)
         
         all_titles = catalog.get('movies', []) + catalog.get('tv_shows', [])
+        total_catalog = catalog.get('total_catalog', 0)
         
-        if not all_titles:
+        if total_catalog == 0:
             return {
                 'top_shows': '',
                 'show_details': [],
-                'total_catalog': 0
+                'total_catalog': 0,
+                'total_movies': 0,
+                'total_tv_shows': 0
             }
         
         # Sort by popularity
@@ -362,7 +385,9 @@ class TMDbClient:
         return {
             'top_shows': top_shows_str,
             'show_details': show_details,
-            'total_catalog': len(all_titles),
+            'total_catalog': total_catalog,
+            'total_movies': catalog.get('total_movies', 0),
+            'total_tv_shows': catalog.get('total_tv_shows', 0),
             'non_english_count': catalog.get('non_english_count', 0)
         }
 
@@ -374,6 +399,13 @@ if __name__ == '__main__':
     # Test with Gaumont
     catalog = client.get_catalog_for_company('Gaumont', 'france')
     print(f"\nGaumont Catalog:")
-    print(f"  Movies: {len(catalog.get('movies', []))}")
-    print(f"  TV Shows: {len(catalog.get('tv_shows', []))}")
+    print(f"  Total Movies: {catalog.get('total_movies', 0)}")
+    print(f"  Total TV Shows: {catalog.get('total_tv_shows', 0)}")
+    print(f"  Total Catalog: {catalog.get('total_catalog', 0)}")
     print(f"  Summary: {catalog.get('summary')}")
+    
+    # Test get_top_shows_formatted
+    top_shows = client.get_top_shows_formatted('Gaumont', 'france')
+    print(f"\nTop Shows Formatted:")
+    print(f"  Total Catalog: {top_shows.get('total_catalog', 0)}")
+    print(f"  Top Shows: {top_shows.get('top_shows', '')}")

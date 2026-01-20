@@ -78,14 +78,14 @@ Be pragmatic. Be reliable. Self-anneal.
 
 The primary lead enrichment pipeline. Uses **batch processing** for all API calls. Supports **multi-market** leads (USA, UK, France, Spain, Germany, South Korea).
 
-**Key Features (v3.2):**
+**Key Features (v3.3):**
 - Retry logic with exponential backoff (3 retries, 5s base delay)
 - API result caching (24h TTL) in `.cache/`
 - Structured logging to console and file
 - Input validation and cleaning
 - Company-specific email patterns
-- **Target company filtering**: Discovered leads only include contacts from companies in `data/companies.py`
-- **Expanded job titles**: Discovery searches for 25+ ICP-aligned roles (see buyer_personas.md)
+- **Sales Navigator only**: Pipeline processes only leads from your Sales Nav export (no additional discovery)
+- **Expanded job titles**: 59 ICP-aligned roles including AI, Localization, International Sales/Licensing
 
 ```bash
 # Full workflow from Sales Navigator export:
@@ -96,7 +96,6 @@ python execution/enrich_pipeline_v3.py --input .tmp/uk_leads_raw.json --market G
 #   --input            Input JSON file with leads
 #   --market           Market name (Global, UK, USA, etc.)
 #   --skip-enrich      Skip LinkedIn/email enrichment
-#   --skip-discovery   Skip additional lead discovery
 #   --skip-db          Skip database push
 #   --skip-cache       Disable API result caching (force fresh calls)
 #   --clear-cache      Clear cache before running
@@ -109,9 +108,8 @@ python execution/enrich_pipeline_v3.py --input .tmp/uk_leads_raw.json --market G
 |------|-------------|--------------|---------|
 | LinkedIn URL lookup | 1 Google search per lead | 20 queries per API call | 20x fewer calls |
 | Email enrichment | 1 Apify call per domain | All domains in 1 call | 5x fewer calls |
-| Lead discovery | Manual | Auto-discovers similar roles at target companies only | New feature |
 
-**Lead Discovery Filtering**: The pipeline only adds discovered leads from companies in `data/companies.py`. This prevents contacts from non-target companies (e.g. random companies returned by Apify) from polluting the output.
+**Note**: The pipeline only processes leads from your Sales Navigator export. No additional leads are discovered or added.
 
 ### Centralized Data Sources
 
@@ -122,20 +120,22 @@ python execution/enrich_pipeline_v3.py --input .tmp/uk_leads_raw.json --market G
 | `utils.py` | Logging, caching, retry logic, validation |
 | `directives/buyer_personas.md` | ICP definitions, role titles, objection handling |
 
-### Discovery Job Titles
+### Target Job Titles
 
-The pipeline searches for leads with these ICP-aligned roles (defined in `enrich_pipeline_v3.py`):
+The pipeline filters by these ICP-aligned roles for email enrichment (defined in `enrich_pipeline_v3.py`):
 
 | Category | Example Titles |
 |----------|---------------|
 | Acquisitions | Head of Acquisitions, VP Acquisitions, Director of Acquisitions |
-| Distribution | Head of Distribution, VP Distribution |
-| Licensing & Sales | Head of Licensing, Head of Content Sales, VP Content Partnerships |
-| Programming & Content | Head of Programming, Head of Content, SVP/EVP Content |
+| Distribution | Head of Distribution, VP Distribution, Head of Global Distribution, Head/VP/SVP International Sales |
+| Licensing & Sales | Head of Licensing, VP/SVP International Licensing, Head/Director of Content Sales, VP Content Partnerships |
+| Programming & Content | Head of Programming, Head of Content, SVP/EVP Content, Chief Content Officer |
 | Consumer Insights | Head of Consumer Insights, VP Data Science, Head of Content Analytics |
 | Studio Business | President of Studio, Studio Head, EVP Franchise Development |
 | International Originals | Head of International Originals, VP Local Originals, Head of Local Content |
-| Universal-specific | CFO, SVP Commercial Strategy, SVP Production, SVP Programming |
+| Localization | Head/VP/SVP/Director of Localization |
+| AI & Technology | Head/VP/SVP/Chief AI Officer, Head of AI Strategy |
+| Operations & Strategy | CFO, Head/VP/SVP Commercial Strategy, SVP Production/Programming/Operations |
 
 ```python
 # Use centralized functions instead of duplicating logic:
@@ -174,12 +174,18 @@ python execution/accounts_pipeline.py --skip-db
 
 # Force fresh API calls
 python execution/accounts_pipeline.py --skip-cache
+
+# Export from database (sync CSVs with DB, skip enrichment)
+python execution/accounts_pipeline.py --export-from-db
+
+# Export accounts AND leads from database
+python execution/accounts_pipeline.py --export-from-db --export-leads
 ```
 
 **Data Sources:**
-1. TMDb API (primary) - Title counts, top shows
+1. TMDb API (primary) - Actual total catalog count via `total_results` from discover endpoints
 2. Google Search Apify (fallback) - If TMDb insufficient
-3. Leads database - Contact counts per company
+3. Leads database - Contact counts per company (COUNT of leads grouped by company_id)
 
 **TMDb API Usage:**
 TMDb provides 3 search methods (see [Finding Data](https://developer.themoviedb.org/docs/finding-data)):

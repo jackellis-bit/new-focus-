@@ -630,6 +630,145 @@ def export_to_excel(companies: list) -> str:
 
 
 # ============================================================================
+# EXPORT FROM DATABASE (Sync CSV with DB)
+# ============================================================================
+
+def export_accounts_from_database() -> str:
+    """
+    Export accounts directly from database to CSV/Excel.
+    
+    This ensures output files are always in sync with database state.
+    
+    Returns:
+        Path to exported Excel file, or None if database not available
+    """
+    logger = get_logger()
+    
+    db_url = os.getenv('DATABASE_URL')
+    if not db_url:
+        logger.warning("   ⚠ DATABASE_URL not found. Cannot export from database.")
+        return None
+    
+    try:
+        from db.connection import get_engine
+        from db.models import Account
+        from sqlalchemy.orm import Session
+        from sqlalchemy import select
+        
+        engine = get_engine()
+        
+        with Session(engine) as session:
+            # Fetch all accounts from database
+            stmt = select(Account).order_by(Account.region, Account.num_titles.desc())
+            accounts = session.execute(stmt).scalars().all()
+            
+            if not accounts:
+                logger.warning("   ⚠ No accounts found in database")
+                return None
+            
+            # Convert to company dicts for export_to_excel
+            companies = []
+            for acc in accounts:
+                companies.append({
+                    'name': acc.name,
+                    'region': acc.region,
+                    'num_titles': acc.num_titles or 0,
+                    'type': acc.company_type,
+                    'num_contacts': acc.num_contacts or 0,
+                    'top_shows': acc.top_shows,
+                    'popularity_score': acc.popularity_score or 0,
+                    'data_source': acc.data_source,
+                })
+            
+            logger.info(f"   📦 Loaded {len(companies)} accounts from database")
+            
+            # Export to Excel/CSV
+            output_path = export_to_excel(companies)
+            
+            logger.info(f"   ✅ Exported {len(companies)} accounts from database to CSV/Excel")
+            
+            return output_path
+            
+    except Exception as e:
+        logger.error(f"   ❌ Database export error: {e}")
+        return None
+
+
+def export_leads_from_database() -> str:
+    """
+    Export leads directly from database to CSV.
+    
+    Returns:
+        Path to exported CSV file, or None if database not available
+    """
+    logger = get_logger()
+    
+    db_url = os.getenv('DATABASE_URL')
+    if not db_url:
+        logger.warning("   ⚠ DATABASE_URL not found. Cannot export leads from database.")
+        return None
+    
+    try:
+        from db.connection import get_engine
+        from db.models import Lead, Company
+        from sqlalchemy.orm import Session
+        from sqlalchemy import select
+        
+        engine = get_engine()
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        Path("output").mkdir(exist_ok=True)
+        
+        with Session(engine) as session:
+            # Fetch all leads with company info
+            stmt = select(Lead).order_by(Lead.priority_score.desc())
+            leads = session.execute(stmt).scalars().all()
+            
+            if not leads:
+                logger.warning("   ⚠ No leads found in database")
+                return None
+            
+            # Convert to list of dicts
+            leads_data = []
+            for lead in leads:
+                leads_data.append({
+                    'Name': lead.name,
+                    'Title': lead.title,
+                    'Company': lead.company.name if lead.company else '',
+                    'Company Type': lead.company.type if lead.company else '',
+                    'LinkedIn URL': lead.linkedin_url,
+                    'Email': lead.email,
+                    'Market': lead.market.upper() if lead.market else '',
+                    'Priority Score': lead.priority_score,
+                    'Catalog Context': lead.catalog_context,
+                })
+            
+            # Export to CSV
+            df = pd.DataFrame(leads_data)
+            csv_path = f"output/leads_from_db_{timestamp}.csv"
+            df.to_csv(csv_path, index=False)
+            
+            logger.info(f"   📊 Exported {len(leads_data)} leads to {csv_path}")
+            
+            # Also export by market
+            market_dir = Path("output/by_market")
+            market_dir.mkdir(exist_ok=True)
+            
+            for market in df['Market'].unique():
+                if market:
+                    market_df = df[df['Market'] == market]
+                    market_path = market_dir / f"leads_{market.lower()}.csv"
+                    market_df.to_csv(market_path, index=False)
+                    logger.info(f"   📊 {market}: {len(market_df)} leads → {market_path}")
+            
+            return csv_path
+            
+    except Exception as e:
+        logger.error(f"   ❌ Leads export error: {e}")
+        return None
+
+
+# ============================================================================
 # MAIN PIPELINE
 # ============================================================================
 
@@ -638,12 +777,30 @@ def main():
     parser.add_argument("--skip-db", action="store_true", help="Skip database push")
     parser.add_argument("--skip-cache", action="store_true", help="Skip API result caching")
     parser.add_argument("--clear-cache", action="store_true", help="Clear API cache before running")
+    parser.add_argument("--export-from-db", action="store_true", help="Export accounts and leads from database to CSV (skip enrichment)")
+    parser.add_argument("--export-leads", action="store_true", help="Also export leads from database")
     
     args = parser.parse_args()
     
     # Set up logging
     logger = setup_logging(output_dir='output', log_to_file=True)
     use_cache = not args.skip_cache
+    
+    # Handle --export-from-db mode (skip enrichment, just export from DB)
+    if args.export_from_db:
+        logger.info("=" * 70)
+        logger.info("📤 EXPORT FROM DATABASE MODE")
+        logger.info("=" * 70)
+        
+        accounts_path = export_accounts_from_database()
+        
+        if args.export_leads:
+            leads_path = export_leads_from_database()
+        
+        logger.info("=" * 70)
+        logger.info("✅ DATABASE EXPORT COMPLETE")
+        logger.info("=" * 70)
+        return
     
     logger.info("=" * 70)
     logger.info("🏢 TRUESYNC ACCOUNTS PIPELINE")

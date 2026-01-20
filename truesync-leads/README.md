@@ -17,7 +17,6 @@ This system discovers, enriches, scores, and exports leads from target companies
 - **Google Search LinkedIn Lookup** - Finds LinkedIn URLs via batched Google searches
 - **Verified Emails** - Uses Apify's leads-finder for verified business emails
 - **Company-Specific Email Patterns** - Uses correct email formats per company
-- **Lead Discovery** - Finds additional leads at target companies not in original export
 - **Sales Navigator CSV Parser** - Imports messy LinkedIn Sales Navigator exports
 - **Market-Specific Exports** - Generates separate CSVs per market
 - **Professional Excel Output** - Styled workbooks with color-coded priority scores
@@ -26,15 +25,14 @@ This system discovers, enriches, scores, and exports leads from target companies
 
 ---
 
-## Latest Results (January 19, 2026)
+## Latest Results (January 20, 2026)
 
 | Metric | Result |
 |--------|--------|
-| **Total Leads Processed** | 475 (336 original + 139 discovered) |
-| **LinkedIn URL Rate** | 90% (428/475) |
-| **Verified Emails** | 119 |
-| **Pattern-Based Emails** | 297 |
-| **Markets Covered** | USA (374), UK (54), France (26), Germany (8), Spain (7), South Korea (2) |
+| **LinkedIn URL Rate** | ~90% |
+| **Verified Emails** | Via Apify leads-finder |
+| **Pattern-Based Emails** | Company-specific formats |
+| **Markets Covered** | USA, UK, France, Germany, Spain, South Korea |
 | **Target Companies** | 31 companies across 6 markets |
 | **Database** | Neon Postgres (PostgreSQL 17.7) |
 
@@ -96,15 +94,7 @@ The system follows a **3-layer DOE architecture** (Directive-Orchestration-Execu
 │  │ • Fallback: company-specific email pattern generation               │   │
 │  └─────────────────────────────────────────────────────────────────────┘   │
 │                                    ↓                                        │
-│  PART 3: Lead Discovery                                                    │
-│  ┌─────────────────────────────────────────────────────────────────────┐   │
-│  │ • Finds additional leads not in Sales Navigator                     │   │
-│  │ • Matches ICP role criteria                                         │   │
-│  │ • Deduplicates against existing leads                               │   │
-│  │ • Auto-detects market from location                                 │   │
-│  └─────────────────────────────────────────────────────────────────────┘   │
-│                                    ↓                                        │
-│  PART 4: Export & Database                                                 │
+│  PART 3: Export & Database                                                 │
 │  ┌─────────────────────────────────────────────────────────────────────┐   │
 │  │ • Styled Excel workbook (dark blue headers, color-coded scores)     │   │
 │  │ • CSV export for Google Sheets import                               │   │
@@ -201,7 +191,6 @@ python execution/enrich_pipeline_v3.py \
   --input .tmp/leads.json \    # Input JSON file
   --market Global \            # Market name (auto-detects from locations)
   --skip-enrich \              # Skip LinkedIn/email enrichment
-  --skip-discovery \           # Skip additional lead discovery  
   --skip-db \                  # Skip database push
   --skip-cache \               # Skip API result caching (force fresh calls)
   --clear-cache \              # Clear cache before running
@@ -250,18 +239,24 @@ Output columns:
 
 ### Primary ICPs (Direct Buyers)
 - **Acquisitions**: Head of International Acquisitions, VP Acquisitions, Director of Acquisitions
-- **Distribution**: EVP Global Distribution, SVP Global Licensing, Head of International Sales
-- **Partnerships**: Head of Content Partnerships, VP Content Partnerships
+- **Distribution**: Head of Global Distribution, Head/VP/SVP International Sales, VP Distribution
+- **Licensing**: Head of Licensing, VP/SVP International Licensing, Director of Licensing
+- **Content Sales**: Head of Content Sales, Director of Content Sales, VP Content Partnerships
 
 ### Secondary ICPs (Influencers/Champions)
-- **Strategy**: Head of International Strategy, VP Content Strategy
-- **Programming (AVOD)**: Head of Programming, VP Programming (Tubi, Pluto, Roku)
+- **Content Leadership**: Head of Content, SVP/EVP Content, Chief Content Officer
+- **Programming**: Head of Programming, SVP Programming (Tubi, Pluto, Roku)
 - **Consumer Insights**: Head of Consumer Insights, VP Data Science, Head of Content Analytics
-- **Studio Owners**: President of Studio, Studio Head, Head of Label
-- **International Originals**: Head of International Originals, VP Local Originals
+- **Studio Owners**: President of Studio, Studio Head, Head of Label, EVP Franchise Development
+- **International Originals**: Head of International Originals, VP Local Originals, Head of Local Content
 
-### Specific Targets
-- **Universal Pictures Content Group**: CFO/SVP Commercial Strategy (joint role), SVP Production/Programming/Operations
+### Emerging Roles
+- **Localization**: Head/VP/SVP/Director of Localization
+- **AI & Technology**: Head/VP/SVP/Chief AI Officer, Head of AI Strategy
+
+### Operations & Strategy
+- **Universal Pictures Content Group**: CFO, SVP Commercial Strategy, SVP Production/Programming/Operations
+- **General**: Head/VP Operations, Head/VP Commercial Strategy
 
 See `directives/buyer_personas.md` for full buyer knowledge base.
 
@@ -423,7 +418,7 @@ export APIFY_TOKEN="apify_api_xxxxx"
 ### Low LinkedIn URL rate
 - Ensure names and companies are spelled correctly
 - Some people may not have public LinkedIn profiles
-- Try running with `--skip-discovery` to focus on existing leads
+- Check that company names match the target companies in `data/companies.py`
 
 ### Batch search timing out
 - Reduce batch size in `google_search_linkedin_urls_batch()` (default: 20)
@@ -442,9 +437,14 @@ export APIFY_TOKEN="apify_api_xxxxx"
 
 ---
 
-## Recent Improvements (v3.2 - January 2026)
+## Recent Improvements (v3.3 - January 2026)
 
-### New Features
+### Changes (v3.3)
+1. **Removed Lead Discovery** - Pipeline now only processes leads from Sales Navigator export (no additional leads discovered)
+2. **Expanded ICP Roles** - Added AI, Localization, International Sales/Licensing, Chief Content Officer
+3. **Simplified Pipeline** - 3 steps: LinkedIn URLs → Email Enrichment → Export
+
+### Features (v3.2)
 1. **Accounts Pipeline** - Separate pipeline for company enrichment with title counts
 2. **Expanded ICP Roles** - Consumer Insights, Studio Owners, International Originals
 3. **Universal Pictures Content Group** - Added with specific target roles
