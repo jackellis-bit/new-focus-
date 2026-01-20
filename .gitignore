@@ -1,0 +1,40 @@
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE/Editor
+.cursor/
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+venv/
+.venv/
+ENV/
+env/
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# Google OAuth
+credentials.json
+token.json
+service_account.json
+
+# Output/generated files
+output/*.xlsx
+output/*.csv
+output/*.log
+*.log
+
+# Temp/intermediate files
+.tmp/
+.cache/

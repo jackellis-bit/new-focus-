@@ -1,0 +1,223 @@
+# =============================================
+# TrueSync Lead Generation System Configuration
+# =============================================
+# 
+# Environment Variables Required:
+#   DATABASE_URL      - Neon Postgres connection string (required)
+#   APIFY_TOKEN       - Apify API token (required for scraping)
+#   HUBSPOT_API_KEY   - HubSpot API key (EU datacenter)
+#   IMDB_PRO_USER     - IMDb Pro username (optional)
+#   IMDB_PRO_PASS     - IMDb Pro password (optional)
+#   TMDB_ACCESS_TOKEN - TMDb bearer token (optional, for catalog data)
+#   OPENAI_API_KEY    - OpenAI API key (optional, for AI enrichment)
+#
+# =============================================
+
+# Database Configuration (Neon Postgres)
+database:
+  # Connection string should be set via environment variable for security
+  # Example: export DATABASE_URL="postgresql://user:pass@host/db?sslmode=require"
+  connection_string: ${DATABASE_URL}
+  pool_size: 5
+  max_overflow: 10
+
+# Apify Configuration
+# Note: Free Apify plan does NOT support API access. Upgrade to paid ($49/mo) for API.
+apify:
+  # Set via environment variable: export APIFY_TOKEN="apify_api_xxxxx"
+  api_token: ${APIFY_TOKEN}
+  
+  # Actor IDs for different scraping tasks (from Apify Store)
+  actors:
+    # Leads Finder - finds people at companies with emails (Apollo alternative)
+    # https://apify.com/code_crafter/leads-finder
+    leads_finder: "code_crafter/leads-finder"
+    
+    # Mass LinkedIn Profile Scraper with Email (No Cookies)
+    # https://apify.com/dev_fusion/linkedin-profile-scraper
+    linkedin_profile: "dev_fusion/linkedin-profile-scraper"
+    
+    # LinkedIn Profile Details Scraper + EMAIL
+    # https://apify.com/apimaestro/linkedin-profile-detail
+    linkedin_profile_detail: "apimaestro/linkedin-profile-detail"
+
+# TMDb Configuration (for catalog lookup)
+# Get your key at: https://www.themoviedb.org/settings/api
+tmdb:
+  # Prefer TMDB_ACCESS_TOKEN (bearer token) over TMDB_API_KEY
+  api_key: ${TMDB_API_KEY}
+  access_token: ${TMDB_ACCESS_TOKEN}
+  base_url: "https://api.themoviedb.org/3"
+
+# Hunter.io Configuration (optional, for email verification)
+# Get your key at: https://hunter.io/api
+hunter:
+  api_key: ${HUNTER_API_KEY}
+
+# HubSpot Configuration (EU datacenter)
+# Get your key at: HubSpot Settings > Integrations > Private Apps
+hubspot:
+  api_key: ${HUBSPOT_API_KEY}
+  datacenter: eu1
+
+# IMDb Pro Configuration (optional, for cast/crew data)
+imdb_pro:
+  username: ${IMDB_PRO_USER}
+  password: ${IMDB_PRO_PASS}
+
+# OpenAI Configuration (optional, for AI-powered enrichment)
+openai:
+  api_key: ${OPENAI_API_KEY}
+
+# Lead Discovery Settings
+discovery:
+  leads_per_company: 20
+  
+  # Target roles - Refined ICPs for TrueSync
+  # Primary ICPs are real buyers/decision owners
+  # Secondary ICPs are strong influencers
+  target_roles:
+    # PRIMARY ICP #1: International Acquisitions (Buyers at Streamers)
+    # Found at: Netflix, Amazon, WBD/Max, Peacock
+    # They buy non-English titles for US/UK/English-speaking territories
+    primary_acquisitions:
+      - "Head of International Acquisitions"
+      - "VP International Acquisitions"
+      - "Director of Acquisitions"
+      - "Head of Content Acquisitions"
+      - "VP Content Acquisitions"
+      - "Director International Acquisitions"
+      - "Head of Acquisitions"
+      - "SVP Acquisitions"
+    
+    # PRIMARY ICP #2: International Content Partnerships
+    # Found at: Netflix, Amazon, WBD, Paramount
+    # They own relationships with foreign studios and performance narratives
+    primary_partnerships:
+      - "Head of International Content Partnerships"
+      - "VP Content Partnerships"
+      - "Head of International Content"
+      - "Director Content Partnerships"
+      - "VP International Content"
+      - "Head of Content Partnerships"
+      - "SVP Content Partnerships"
+      - "Director International Content"
+    
+    # PRIMARY ICP #3: Global Distribution/Licensing (Studios)
+    # Found at: Sony, Lionsgate, Paramount, Universal, WBD
+    # They sell international titles into English-speaking markets
+    primary_distribution:
+      - "EVP Global Distribution"
+      - "SVP Global Licensing"
+      - "Head of International Sales"
+      - "VP International Distribution"
+      - "Head of Global Licensing"
+      - "SVP International Distribution"
+      - "EVP International Sales"
+      - "Head of International Distribution"
+      - "VP Global Distribution"
+      - "SVP Global Distribution"
+    
+    # SECONDARY ICP #4: International/Content Strategy
+    # Portfolio-level performance, localization investment decisions
+    # Often becomes the internal champion
+    secondary_strategy:
+      - "Head of International Strategy"
+      - "VP Content Strategy"
+      - "Head of Portfolio Strategy"
+      - "VP International Strategy"
+      - "Head of Content Strategy"
+      - "Director Content Strategy"
+      - "SVP Content Strategy"
+    
+    # SECONDARY ICP #5: AVOD/FAST Programming
+    # Found at: Tubi, Pluto, Roku Channel, Freevee
+    # Minutes watched = revenue, localization quality affects RPMs
+    secondary_avod:
+      - "Head of Programming"
+      - "VP Programming"
+      - "Director of Programming"
+      - "Head of Content Programming"
+      - "VP Content Programming"
+      - "SVP Programming"
+  
+    # SECONDARY ICP #6: Consumer Insights / Data Science (Validation Partners)
+    secondary_insights:
+      - "Head of Consumer Insights"
+      - "VP Data Science"
+      - "Head of Content Analytics"
+      - "VP Consumer Research"
+      - "Director of Audience Insights"
+      - "Head of Research"
+      - "SVP Consumer Insights"
+    
+    # SECONDARY ICP #7: Studio Business Owners (Label/Franchise)
+    secondary_studio_owners:
+      - "President of Studio"
+      - "Studio Head"
+      - "Head of Label"
+      - "EVP Franchise Development"
+      - "SVP Franchise Strategy"
+      - "General Manager"
+    
+    # From Wet Cement Doc - International Originals Leadership
+    international_originals:
+      - "Head of International Originals"
+      - "VP Local Originals"
+      - "Head of Local Content"
+      - "SVP International Originals"
+      - "Director of Originals"
+    
+    # SPECIFIC TARGETS: Universal Pictures Content Group
+    universal_targets:
+      - "CFO"
+      - "SVP Commercial Strategy"
+      - "SVP Production"
+      - "SVP Programming"
+      - "SVP Operations"
+  
+  # Roles to EXCLUDE - not our ICP (care about cost/workflow, not performance/revenue)
+  exclude_roles:
+    - "Localization"
+    - "Post-production"
+    - "Post Production"
+    - "Creative services"
+    - "Language ops"
+    - "Language Operations"
+    - "Dubbing"
+    - "Subtitling"
+    - "Subtitle"
+    - "QC"
+    - "Quality Control"
+    - "Media Services"
+
+# Scoring Weights
+# Leads are scored 1-100 based on these weighted factors
+scoring:
+  role_relevance: 0.25      # Distribution/Licensing/M&A/Executive roles score highest
+  catalog_volume: 0.25      # Larger catalog = higher score
+  market_priority: 0.20     # Tier 1 markets score higher
+  decision_authority: 0.15  # C-Suite/SVP/VP scores highest
+  company_type: 0.15        # Distributors > Producers > Platforms
+  
+  # Market priority multipliers
+  # Tier 1 (Primary): UK, USA, Spain - highest priority
+  # Tier 2 (Expansion): Germany, France, Korea
+  market_multipliers:
+    uk: 1.0       # Gateway to US buyers
+    usa: 1.0      # Greenlight power
+    spain: 0.95   # Highest dubbing ROI
+    germany: 0.85 # Underleveraged in English
+    france: 0.85  # Prestige + volume
+    korea: 0.85   # Premium scripted
+
+# Output Settings
+output:
+  excel_filename: "truesync_leads_{timestamp}.xlsx"
+  output_directory: "output"
+  
+  # Excel sheets generated:
+  # 1. Master Lead List - All leads sorted by score
+  # 2-7. Per-market breakdowns (UK, USA, Spain, Germany, France, Korea)
+  # 8. Catalog Intelligence - TMDb data per company
+  # 9. Scoring Methodology - Explanation of scoring
