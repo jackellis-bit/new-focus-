@@ -181,6 +181,14 @@ python execution/accounts_pipeline.py --skip-cache
 2. Google Search Apify (fallback) - If TMDb insufficient
 3. Leads database - Contact counts per company
 
+**TMDb API Usage:**
+TMDb provides 3 search methods (see [Finding Data](https://developer.themoviedb.org/docs/finding-data)):
+- `/search` - Text-based search (we use `/search/company` to find company IDs)
+- `/discover` - Filter-based search (we use `/discover/movie` and `/discover/tv` with `with_companies` filter)
+- `/find` - External ID lookup (useful if we have IMDb IDs)
+
+**Limitation:** TMDb indexes **production companies**, not distributors or platforms. Companies like Beta Film (distributor), Tubi (AVOD), and regional Netflix divisions often have incomplete data, requiring Google Search fallback.
+
 ### Apify Actors
 
 | Actor | Purpose | Batch Support |

@@ -32,6 +32,8 @@ service_account.json
 # Output/generated files
 output/*.xlsx
 output/*.csv
+output/**/*.xlsx
+output/**/*.csv
 output/*.log
 *.log
 
