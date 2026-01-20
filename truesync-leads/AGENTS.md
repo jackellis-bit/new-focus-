@@ -157,7 +157,7 @@ market = detect_market("Los Angeles, California")  # "usa"
 | `parse_sales_nav_csv.py` | Parse messy LinkedIn Sales Navigator CSV exports |
 | `scrape_apify.py` | Direct Apify actor calls |
 | `import_leads.py` | Import leads to database |
-| `update_sheet.py` | Export to Google Sheets |
+| `update_sheet.py` | Export to Google Sheets (supports multiple worksheets, accounts & leads) |
 
 ### Accounts Pipeline: `execution/accounts_pipeline.py`
 

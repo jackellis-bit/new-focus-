@@ -55,13 +55,29 @@ from utils import (
 
 # ICP role keywords for filtering
 ICP_ROLES_HIGH = [
+    # Distribution & Licensing (Direct Buyers)
     'acquisitions', 'distribution', 'licensing', 'content sales',
-    'content partnerships', 'programming', 'content strategy'
+    'content partnerships', 'programming', 'content strategy',
+    # Localization (Direct Buyers)
+    'localization',
+    # C-Suite & Strategy (Budget Authority)
+    'cfo', 'chief financial', 'commercial strategy', 'chief commercial',
+    # AI & Technology
+    'ai officer', 'ai strategy', 'artificial intelligence',
+    # M&A
+    'm&a', 'business development',
 ]
 
 ICP_ROLES_MEDIUM = [
     'head of content', 'vp content', 'svp content', 'evp content',
-    'director content', 'global head'
+    'director content', 'global head',
+    # Operations & Production
+    'operations', 'production',
+    # Consumer Insights (Validators)
+    'consumer insights', 'data science', 'content analytics', 'consumer research',
+    'audience insights',
+    # International Originals
+    'international originals', 'local originals', 'local content',
 ]
 
 # Job titles for lead discovery
