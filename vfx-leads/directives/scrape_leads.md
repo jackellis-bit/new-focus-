@@ -43,21 +43,31 @@ All API calls use batch processing:
 Run 4 separate searches (one per persona tier) in Sales Navigator.
 See "Sales Navigator Search Specifications" section below.
 
-### 2. Parse CSV
+### 2. Parse CSV(s)
 ```bash
-python execution/parse_sales_nav_csv.py "/path/to/export.csv" --output .tmp/vfx_leads_raw.json
+# All 4 tier exports at once (recommended)
+python execution/parse_sales_nav_csv.py tier1_eb.csv tier2_tc.csv tier3_users.csv tier4_proc.csv
+
+# Or one at a time using --append
+python execution/parse_sales_nav_csv.py tier1_eb.csv
+python execution/parse_sales_nav_csv.py tier2_tc.csv --append
+python execution/parse_sales_nav_csv.py tier3_users.csv --append
+python execution/parse_sales_nav_csv.py tier4_proc.csv --append
+
+# Custom output path
+python execution/parse_sales_nav_csv.py export.csv --output .tmp/vfx_leads_raw.json
 ```
 
 ### 3. Run Pipeline
 ```bash
-# Full pipeline
-python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json
-
-# Skip enrichment (just classify, score, export)
+# Dry-run first: validate classification + company filter (no API credits)
 python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-enrich --skip-db
 
-# Skip database
-python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db
+# Full enrichment (LinkedIn URLs + emails)
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db --drop-unclassified
+
+# Full pipeline with database push
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --drop-unclassified
 ```
 
 ### 4. Output

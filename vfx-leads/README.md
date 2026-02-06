@@ -13,15 +13,20 @@ pip install -r requirements.txt
 
 # 2. Set up environment variables
 cp .env.example .env
-# Edit .env with your APIFY_TOKEN
+# Edit .env with your APIFY_TOKEN (and optionally DATABASE_URL)
 
-# 3. Parse a Sales Navigator export
-python execution/parse_sales_nav_csv.py "/path/to/sales_nav_export.csv"
+# 3. Parse Sales Navigator exports (supports multiple CSVs per tier search)
+python execution/parse_sales_nav_csv.py tier1_eb.csv tier2_tc.csv tier3_users.csv tier4_proc.csv
+# Or parse incrementally with --append
+python execution/parse_sales_nav_csv.py new_export.csv --append
 
-# 4. Run the pipeline
-python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db
+# 4. Dry-run: validate classification + company filter (no API credits used)
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-enrich --skip-db
 
-# 5. Output: output/vfx_leads_*.xlsx
+# 5. Full enrichment: LinkedIn URLs + emails via Apify
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db --drop-unclassified
+
+# 6. Output: output/vfx_leads_*.xlsx
 ```
 
 ## Architecture
@@ -30,7 +35,7 @@ python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db
 INPUT: Sales Navigator CSV
     |
     v
-STEP 1: Parse & Validate
+STEP 1: Parse & Validate (multi-CSV, LinkedIn URL extraction)
     |
     v
 STEP 2: Filter to 208 Target Companies (strict)
@@ -42,7 +47,7 @@ STEP 3: Classify Persona Tier (EB / TC / User / Procurement)
 STEP 4: LinkedIn URL Discovery (batched Google search)
     |
     v
-STEP 5: Email Enrichment (Apify)
+STEP 5: Email Enrichment (profile scrape + leads-finder)
     |
     v
 STEP 6: Score Leads (tier + seniority + company + market)

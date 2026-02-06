@@ -47,13 +47,20 @@ This pipeline ONLY processes leads from the 208 target VFX companies defined in 
 ## Workflow
 
 ```bash
-# 1. Parse Sales Navigator export
-python execution/parse_sales_nav_csv.py "/path/to/export.csv"
+# 1. Parse Sales Navigator export(s) - supports multiple CSVs and --append
+python execution/parse_sales_nav_csv.py tier1_eb.csv tier2_tc.csv tier3_users.csv tier4_proc.csv
 
-# 2. Run enrichment pipeline
-python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db
+# Or parse one at a time and append
+python execution/parse_sales_nav_csv.py tier1_eb.csv
+python execution/parse_sales_nav_csv.py tier2_tc.csv --append
 
-# 3. Output in output/vfx_leads_*.xlsx
+# 2. Dry-run: validate classification + company filtering (no API credits used)
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-enrich --skip-db
+
+# 3. Full enrichment (LinkedIn URLs + emails via Apify)
+python execution/enrich_pipeline.py --input .tmp/vfx_leads_raw.json --skip-db --drop-unclassified
+
+# 4. Output in output/vfx_leads_*.xlsx
 ```
 
 ## Data Architecture

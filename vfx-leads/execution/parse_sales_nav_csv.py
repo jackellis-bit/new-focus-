@@ -7,8 +7,19 @@ Handles the messy Sales Navigator export format and extracts:
 - Title
 - Company
 - Location
+- LinkedIn URL (if present in export)
 
-Then filters to VFX-relevant titles only.
+Supports multiple CSV files (one per persona tier search).
+
+Usage:
+  # Single CSV
+  python parse_sales_nav_csv.py "/path/to/export.csv"
+
+  # Multiple CSVs (one per tier search)
+  python parse_sales_nav_csv.py tier1_eb.csv tier2_tc.csv tier3_users.csv tier4_proc.csv
+
+  # Append to existing JSON
+  python parse_sales_nav_csv.py new_export.csv --append
 """
 import re
 import json
@@ -56,6 +67,9 @@ VFX_TITLE_KEYWORDS = [
     'senior', 'manager', 'coordinator',
 ]
 
+# Regex to find LinkedIn profile URLs in CSV data
+LINKEDIN_URL_PATTERN = re.compile(r'https?://(?:www\.)?linkedin\.com/in/[A-Za-z0-9\-_%]+/?')
+
 
 def parse_sales_nav_export(csv_path: str) -> list:
     """
@@ -90,8 +104,23 @@ def parse_sales_nav_export(csv_path: str) -> list:
         
         name = ""
         title = ""
+        linkedin_url = ""
+        
+        # Check ALL columns for a LinkedIn URL
+        full_row_text = ' '.join(str(col) for col in row)
+        url_match = LINKEDIN_URL_PATTERN.search(full_row_text)
+        if url_match:
+            linkedin_url = url_match.group(0).rstrip('/')
         
         lines = name_block.split('\n')
+        
+        # Also check name block lines for LinkedIn URL
+        if not linkedin_url:
+            for line in lines:
+                url_match = LINKEDIN_URL_PATTERN.search(line)
+                if url_match:
+                    linkedin_url = url_match.group(0).rstrip('/')
+                    break
         
         # Extract name
         for line in lines:
@@ -101,6 +130,8 @@ def parse_sales_nav_export(csv_path: str) -> list:
             if line in ['CRM', 'Saved Badge', '1 List']:
                 continue
             if 'degree connection' in line.lower():
+                continue
+            if 'linkedin.com' in line.lower():
                 continue
             
             if line.startswith('Select '):
@@ -150,43 +181,104 @@ def parse_sales_nav_export(csv_path: str) -> list:
                 'company': company,
                 'location': location,
                 'email': '',
-                'linkedin_url': '',
+                'linkedin_url': linkedin_url,
             })
     
-    # Deduplicate
+    return leads
+
+
+def deduplicate_leads(leads: list) -> list:
+    """
+    Deduplicate leads by (name, company) tuple.
+    Keeps the first occurrence (which preserves richer data if present).
+    """
     seen = set()
     unique_leads = []
     for lead in leads:
-        key = lead['name'].lower().strip()
+        key = (lead['name'].lower().strip(), lead.get('company', '').lower().strip())
         if key not in seen:
             seen.add(key)
             unique_leads.append(lead)
-    
     return unique_leads
+
+
+def parse_multiple_csvs(csv_paths: list) -> list:
+    """
+    Parse multiple Sales Navigator CSVs and merge into a single deduplicated list.
+    Useful when running separate searches per persona tier.
+    
+    Args:
+        csv_paths: List of CSV file paths
+        
+    Returns:
+        Deduplicated list of lead dicts
+    """
+    all_leads = []
+    for path in csv_paths:
+        print(f"Parsing: {path}")
+        leads = parse_sales_nav_export(path)
+        print(f"  -> {len(leads)} leads extracted")
+        all_leads.extend(leads)
+    
+    unique = deduplicate_leads(all_leads)
+    print(f"\nTotal: {len(all_leads)} raw -> {len(unique)} after dedup")
+    return unique
 
 
 def main():
     if len(sys.argv) < 2:
-        print("Usage: python parse_sales_nav_csv.py <csv_path> [--output <json_path>]")
-        print("  Parses a LinkedIn Sales Navigator CSV export into JSON for the VFX pipeline.")
+        print("Usage: python parse_sales_nav_csv.py <csv_path> [csv_path2 ...] [--output <json_path>] [--append]")
+        print("  Parses one or more LinkedIn Sales Navigator CSV exports into JSON.")
+        print("  Use --append to merge into an existing output JSON file.")
         sys.exit(1)
     
-    csv_path = sys.argv[1]
-    
-    # Optional output path
+    # Separate flags from CSV paths
+    csv_paths = []
     output_path = None
-    if '--output' in sys.argv:
-        idx = sys.argv.index('--output')
-        if idx + 1 < len(sys.argv):
-            output_path = sys.argv[idx + 1]
+    append_mode = False
+    
+    i = 1
+    while i < len(sys.argv):
+        arg = sys.argv[i]
+        if arg == '--output':
+            if i + 1 < len(sys.argv):
+                output_path = sys.argv[i + 1]
+                i += 2
+                continue
+        elif arg == '--append':
+            append_mode = True
+            i += 1
+            continue
+        else:
+            csv_paths.append(arg)
+        i += 1
+    
+    if not csv_paths:
+        print("Error: No CSV files provided.")
+        sys.exit(1)
     
     if not output_path:
         output_path = str(Path(__file__).parent.parent / ".tmp" / "vfx_leads_raw.json")
     
-    print(f"Parsing: {csv_path}")
-    leads = parse_sales_nav_export(csv_path)
+    # Parse CSV(s)
+    if len(csv_paths) == 1:
+        print(f"Parsing: {csv_paths[0]}")
+        leads = parse_sales_nav_export(csv_paths[0])
+        leads = deduplicate_leads(leads)
+    else:
+        leads = parse_multiple_csvs(csv_paths)
     
-    # Show results
+    # Append mode: merge with existing JSON
+    if append_mode:
+        output_file = Path(output_path)
+        if output_file.exists():
+            with open(output_file, 'r') as f:
+                existing = json.load(f)
+            print(f"Appending to existing {len(existing)} leads in {output_path}")
+            leads = deduplicate_leads(existing + leads)
+            print(f"  -> {len(leads)} total after dedup")
+    
+    # Show results (same display as before)
     print(f"\n{'='*100}")
     print(f"Extracted {len(leads)} leads:")
     print(f"{'='*100}")

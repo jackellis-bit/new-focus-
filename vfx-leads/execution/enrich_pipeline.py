@@ -48,6 +48,8 @@ def parse_args():
     parser.add_argument("--skip-db", action="store_true", help="Skip database push")
     parser.add_argument("--skip-cache", action="store_true", help="Disable API caching")
     parser.add_argument("--clear-cache", action="store_true", help="Clear cache before running")
+    parser.add_argument("--drop-unclassified", action="store_true",
+                        help="Remove leads that don't match any persona tier (saves API credits)")
     return parser.parse_args()
 
 
@@ -212,6 +214,10 @@ def enrich_linkedin_urls(leads: list, logger, cache: APICache) -> list:
 def enrich_emails(leads: list, logger, cache: APICache) -> list:
     """
     Batch email enrichment using Apify leads-finder.
+    
+    Strategy:
+      1. Leads WITH LinkedIn URLs -> batch profile scraping for contact info
+      2. Leads WITHOUT LinkedIn URLs -> leads-finder with name + company
     """
     try:
         from apify_client import ApifyClient
@@ -230,23 +236,132 @@ def enrich_emails(leads: list, logger, cache: APICache) -> list:
         return leads
     
     logger.info(f"Enriching emails for {len(needs_email)} leads...")
-    
-    # Group by company domain for batch lookup
-    # For now, mark as needing email - actual enrichment uses Apify
-    # The leads-finder actor works best with company domains
-    
     client = ApifyClient(token)
     
-    # Get unique companies that need email enrichment
-    companies_needing_email = set(l.get('company', '') for l in needs_email)
-    logger.info(f"Companies needing email enrichment: {len(companies_needing_email)}")
+    # ----------------------------------------------------------------
+    # Strategy 1: Leads WITH LinkedIn URLs -> profile scraping
+    # ----------------------------------------------------------------
+    with_url = [l for l in needs_email if l.get('linkedin_url')]
+    without_url = [l for l in needs_email if not l.get('linkedin_url')]
     
-    # Use leads-finder with company names
-    # This is a simplified version - can be expanded with domain lookups
-    for lead in needs_email:
-        if lead.get('linkedin_url'):
-            # If we have LinkedIn URL, we can try profile scraping for email
-            pass  # Handled by LinkedIn profile enrichment if needed
+    if with_url:
+        logger.info(f"  Profile scraping for {len(with_url)} leads with LinkedIn URLs...")
+        batch_size = 10
+        batches = [with_url[i:i+batch_size] for i in range(0, len(with_url), batch_size)]
+        progress = ProgressTracker(len(batches), "Email via Profile Scrape")
+        
+        for batch in batches:
+            urls = [l['linkedin_url'] for l in batch]
+            
+            cache_key = f"profile_email_{hash(tuple(urls))}"
+            cached = cache.get(cache_key) if cache else None
+            
+            if cached:
+                results = cached
+            else:
+                try:
+                    run_input = {
+                        "urls": urls,
+                        "proxy": {"useApifyProxy": True},
+                    }
+                    run = client.actor("dev_fusion/linkedin-profile-scraper").call(run_input=run_input)
+                    
+                    results = []
+                    for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+                        results.append(item)
+                    
+                    if cache:
+                        cache.set(cache_key, results)
+                        
+                except Exception as e:
+                    logger.warning(f"  Profile scrape batch failed: {e}")
+                    progress.update(1)
+                    continue
+            
+            # Match results back to leads by URL
+            result_map = {}
+            for item in results:
+                profile_url = item.get('url', item.get('profileUrl', ''))
+                email = item.get('email', item.get('contactInfo', {}).get('email', ''))
+                if profile_url and email:
+                    result_map[profile_url.rstrip('/')] = email
+            
+            for lead in batch:
+                url_key = lead['linkedin_url'].rstrip('/')
+                if url_key in result_map:
+                    lead['email'] = result_map[url_key]
+            
+            progress.update(1)
+            time.sleep(1)  # Rate limiting
+        
+        progress.finish()
+    
+    # ----------------------------------------------------------------
+    # Strategy 2: Leads WITHOUT LinkedIn URLs -> leads-finder
+    # ----------------------------------------------------------------
+    # Also retry leads from Strategy 1 that didn't get an email
+    still_needs_email = [l for l in needs_email if not l.get('email')]
+    
+    if still_needs_email:
+        logger.info(f"  Leads-finder for {len(still_needs_email)} remaining leads...")
+        batch_size = 20
+        batches = [still_needs_email[i:i+batch_size] for i in range(0, len(still_needs_email), batch_size)]
+        progress = ProgressTracker(len(batches), "Email via Leads-Finder")
+        
+        for batch in batches:
+            queries = []
+            for lead in batch:
+                queries.append({
+                    "name": lead.get('name', ''),
+                    "company": lead.get('company', ''),
+                })
+            
+            cache_key = f"leads_finder_{hash(str(queries))}"
+            cached = cache.get(cache_key) if cache else None
+            
+            if cached:
+                results = cached
+            else:
+                try:
+                    run_input = {
+                        "queries": queries,
+                        "proxy": {"useApifyProxy": True},
+                    }
+                    run = client.actor("code_crafter/leads-finder").call(run_input=run_input)
+                    
+                    results = []
+                    for item in client.dataset(run["defaultDatasetId"]).iterate_items():
+                        results.append(item)
+                    
+                    if cache:
+                        cache.set(cache_key, results)
+                        
+                except Exception as e:
+                    logger.warning(f"  Leads-finder batch failed: {e}")
+                    progress.update(1)
+                    continue
+            
+            # Match results back to leads by name similarity
+            for lead in batch:
+                lead_name = lead.get('name', '').lower()
+                lead_company = lead.get('company', '').lower()
+                
+                for result in results:
+                    result_name = result.get('name', result.get('fullName', '')).lower()
+                    result_email = result.get('email', '')
+                    
+                    if result_email and lead_name and result_name:
+                        # Match on first + last name overlap
+                        lead_parts = set(lead_name.split())
+                        result_parts = set(result_name.split())
+                        if len(lead_parts & result_parts) >= 2 or lead_name == result_name:
+                            lead['email'] = result_email
+                            break
+            
+            progress.update(1)
+            time.sleep(1)  # Rate limiting
+        
+        progress.finish()
     
     found = sum(1 for l in leads if l.get('email'))
     logger.info(f"Emails: {found}/{len(leads)} ({100*found//len(leads) if leads else 0}%)")
@@ -348,6 +463,14 @@ def main():
     # ================================================================
     logger.info("\n--- STEP 3: Classify Persona Tiers ---")
     leads = classify_leads(leads, logger)
+    
+    # Drop unclassified leads if requested (saves API credits during enrichment)
+    if args.drop_unclassified:
+        before = len(leads)
+        leads = [l for l in leads if l.get('persona_tier') != 'unclassified']
+        dropped = before - len(leads)
+        if dropped:
+            logger.info(f"  Dropped {dropped} unclassified leads ({len(leads)} remaining)")
     
     # ================================================================
     # STEP 4: Enrich market from location
