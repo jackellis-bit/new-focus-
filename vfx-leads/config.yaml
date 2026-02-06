@@ -1,0 +1,122 @@
+# =============================================
+# VFX Leads Pipeline Configuration
+# =============================================
+#
+# Environment Variables Required:
+#   APIFY_TOKEN       - Apify API token (required for enrichment)
+#   DATABASE_URL      - Neon Postgres connection string (optional)
+#
+# =============================================
+
+# Apify Configuration
+apify:
+  api_token: ${APIFY_TOKEN}
+  actors:
+    leads_finder: "code_crafter/leads-finder"
+    linkedin_profile: "dev_fusion/linkedin-profile-scraper"
+    google_search: "apify/google-search-scraper"
+
+# Database Configuration (optional)
+database:
+  connection_string: ${DATABASE_URL}
+  pool_size: 5
+  max_overflow: 10
+
+# Scoring Weights
+scoring:
+  persona_tier: 0.40
+  seniority: 0.25
+  company_relevance: 0.20
+  market_priority: 0.15
+
+  # Market multipliers
+  market_multipliers:
+    usa: 1.0
+    uk: 1.0
+    canada: 0.95
+    france: 0.90
+    india: 0.85
+
+# Output Settings
+output:
+  excel_filename: "vfx_leads_{timestamp}.xlsx"
+  output_directory: "output"
+
+# Target Persona Tiers and their Sales Nav search titles
+personas:
+  economic_buyer:
+    label: "Economic Buyer"
+    description: "Signs budget, approves vendors"
+    priority: 1
+    titles:
+      - "Head of Post Production"
+      - "Head of Production"
+      - "Managing Director"
+      - "Executive Producer"
+      - "Head of VFX"
+      - "COO"
+      - "Chief Operating Officer"
+      - "Operations Director"
+      - "Head of Operations"
+      - "Head of Innovation"
+      - "Head of Technology"
+      - "Chief Technology Officer"
+      - "CTO"
+      - "CEO"
+      - "President"
+      - "General Manager"
+      - "Studio Director"
+      - "Chief Creative Officer"
+
+  technical_champion:
+    label: "Technical Champion"
+    description: "Validates internally"
+    priority: 2
+    titles:
+      - "VFX Supervisor"
+      - "CG Supervisor"
+      - "Compositing Supervisor"
+      - "Head of 2D"
+      - "Head of Comp"
+      - "Pipeline TD"
+      - "Head of Pipeline"
+      - "Pipeline Supervisor"
+      - "Technical Director"
+      - "Head of R&D"
+      - "Head of CG"
+      - "Head of 3D"
+      - "DFX Supervisor"
+      - "Lighting Supervisor"
+      - "Animation Supervisor"
+      - "FX Supervisor"
+      - "Look Development Supervisor"
+
+  day_to_day_user:
+    label: "Day-to-Day User"
+    description: "Creates bottom-up demand"
+    priority: 3
+    titles:
+      - "Senior Compositor"
+      - "Lead Compositor"
+      - "Lead Roto Artist"
+      - "Lead Paint Artist"
+      - "Prep Supervisor"
+      - "Sequence Lead"
+      - "Senior Roto Artist"
+      - "Lead Matchmove Artist"
+      - "Rotoscope Supervisor"
+      - "Paint Supervisor"
+      - "2D Lead"
+
+  procurement:
+    label: "Procurement"
+    description: "Later-stage only. Never lead with these."
+    priority: 4
+    titles:
+      - "Procurement Manager"
+      - "Commercial Manager"
+      - "Vendor Manager"
+      - "Head of Procurement"
+      - "Commercial Director"
+      - "Head of Commercial"
+      - "Finance Director"

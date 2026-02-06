@@ -1,0 +1,25 @@
+# Environment
+.env
+.env.local
+venv/
+__pycache__/
+*.pyc
+
+# Intermediate files
+.tmp/
+.cache/
+
+# Output (regenerable)
+output/
+
+# IDE
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Credentials
+credentials.json
+token.json
